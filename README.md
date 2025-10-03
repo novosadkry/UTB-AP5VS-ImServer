@@ -6,7 +6,7 @@
 
 |                                  |                                                   |
 | -------------------------------- | ------------------------------------------------- |
-| __Maximální počet bodů__         | 10 bodů                                           |
+| __Maximální počet bodů__         | 11 bodů                                           |
 | __Způsob komunikace s aplikací__ | Parametry předané při spuštění + síťové připojení |
 | __Způsob testování aplikace__    | Na základě odesílaných zpráv po síti              |
 
@@ -37,7 +37,7 @@ OutputHandler klienta2 čeká na data, která přijdou do jeho fronty zpráv. Ja
 
 Všichni právě připojení klienti (resp. jejich SocketHandler-s) jsou uchovávání v množině __activeHandlers__.
 
-### 💡 Typ
+### 💡 Tip
 > Pokud bychom chtěli přidat funkci pro doručování zpráv jen vybraným klientům, bylo by lepší místo množiny HashSet použít __ConcurrentHashMap<String, SocketHandler>__, v níž bychom jako klíč používali řetězec __clientID__. Zprávy, které mají jít jen jednomu klientovi, by pak mohly začínat řetězcem clientID - pokud by server na začátku zprávy našel clientID, našel by si v HashMapě podle něj referenci na SocketHandler, který tohoto klienta obsluhuje, a zprávu by přidal do fronty pouze jemu.
 
 --- 
