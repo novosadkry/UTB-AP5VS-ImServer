@@ -6,48 +6,52 @@ import java.util.concurrent.*;
 
 public class SocketHandler {
 	/** mySocket je socket, o který se bude tento SocketHandler starat */
-	Socket mySocket;
+    private Socket mySocket;
 
 	/** client ID je øetìzec ve formátu <IP_adresa>:<port> */
-	String clientID;
+	private String clientID;
+    private String clientName;
+
+    private CommandHandler commandHandler;
 
 	/**
 	 * activeHandlers je reference na mnoinu vech právì bìících SocketHandlerù.
 	 * Potøebujeme si ji udrovat, abychom mohli zprávu od tohoto klienta
 	 * poslat vem ostatním!
 	 */
-	ActiveHandlers activeHandlers;
+	private ActiveHandlers activeHandlers;
 
 	/**
 	 * messages je fronta pøíchozích zpráv, kterou musí mít kaý klient svoji
 	 * vlastní - pokud bude je pøetíená nebo nefunkèní klientova sí,
 	 * èekají zprávy na doruèení právì ve frontì messages
 	 */
-	ArrayBlockingQueue<String> messages = new ArrayBlockingQueue<String>(20);
+    private ArrayBlockingQueue<String> messages = new ArrayBlockingQueue<String>(20);
 
 	/**
 	 * startSignal je synchronizaèní závora, která zaøizuje, aby oba tasky
 	 * OutputHandler.run() a InputHandler.run() zaèaly ve stejný okamik.
 	 */
-	CountDownLatch startSignal = new CountDownLatch(2);
+    private CountDownLatch startSignal = new CountDownLatch(2);
 
 	/** outputHandler.run() se bude starat o OutputStream mého socketu */
-	OutputHandler outputHandler = new OutputHandler();
+    private OutputHandler outputHandler = new OutputHandler();
 	/** inputHandler.run() se bude starat o InputStream mého socketu */
-	InputHandler inputHandler = new InputHandler();
+    private InputHandler inputHandler = new InputHandler();
 	/**
 	 * protoe v outputHandleru nedovedu detekovat uzavøení socketu, pomùe mi
 	 * inputFinished
 	 */
-	volatile boolean inputFinished = false;
+    private volatile boolean inputFinished = false;
 
 	public SocketHandler(Socket mySocket, ActiveHandlers activeHandlers) {
 		this.mySocket = mySocket;
 		clientID = mySocket.getInetAddress().toString() + ":" + mySocket.getPort();
 		this.activeHandlers = activeHandlers;
+        this.commandHandler = new CommandHandler(activeHandlers);
 	}
 
-	class OutputHandler implements Runnable {
+    public class OutputHandler implements Runnable {
 		public void run() {
 			OutputStreamWriter writer;
 			try {
@@ -76,7 +80,7 @@ public class SocketHandler {
 		}
 	}
 
-	class InputHandler implements Runnable {
+	public class InputHandler implements Runnable {
 		public void run() {
 			try {
 				System.err.println("DBG>Input handler starting for " + clientID);
@@ -91,8 +95,18 @@ public class SocketHandler {
 				activeHandlers.add(SocketHandler.this);
 				BufferedReader reader = new BufferedReader(new InputStreamReader(mySocket.getInputStream(), "UTF-8"));
 				while ((request = reader.readLine()) != null) { // pøila od mého klienta nìjaká zpráva?
+                    if (request.startsWith("#")) {
+                        commandHandler.parseAndExecute(SocketHandler.this, request.substring(1));
+                        continue;
+                    }
+
+                    if (clientName == null) {
+                        clientName = request;
+                        continue;
+                    }
+
 					// ano - poli ji vem ostatním klientùm
-					request = "From client " + clientID + ": " + request;
+                    request = String.format("[%s] >> %s", clientName, request);
 					System.out.println(request);
 					activeHandlers.sendMessageToAll(SocketHandler.this, request);
 				}
@@ -112,6 +126,29 @@ public class SocketHandler {
 			}
 			System.err.println("DBG>Input handler for " + clientID + " has finished.");
 		}
-
 	}
+
+    public String getClientID() {
+        return clientID;
+    }
+
+    public String getClientName() {
+        return clientName;
+    }
+
+    public void setClientName(String clientName) {
+        this.clientName = clientName;
+    }
+
+    public OutputHandler getOutputHandler() {
+        return outputHandler;
+    }
+
+    public InputHandler getInputHandler() {
+        return inputHandler;
+    }
+
+    public boolean offerMessage(String message) {
+        return messages.offer(message);
+    }
 }

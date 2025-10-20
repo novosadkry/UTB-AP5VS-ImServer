@@ -40,8 +40,8 @@ public class App {
 				Socket clientSocket = sSocket.accept();
 				clientSocket.setKeepAlive(true);
 				SocketHandler handler = new SocketHandler(clientSocket, activeHandlers);
-				pool.execute(handler.inputHandler);
-				pool.execute(handler.outputHandler);
+				pool.execute(handler.getInputHandler());
+				pool.execute(handler.getOutputHandler());
 			} while (!pool.isTerminated());
 		} catch (UnknownHostException e) {
 			e.printStackTrace();
