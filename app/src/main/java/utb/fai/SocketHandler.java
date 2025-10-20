@@ -2,6 +2,7 @@ package utb.fai;
 
 import java.io.*;
 import java.net.*;
+import java.util.HashSet;
 import java.util.concurrent.*;
 
 public class SocketHandler {
@@ -20,6 +21,7 @@ public class SocketHandler {
 	 * poslat vem ostatním!
 	 */
 	private ActiveHandlers activeHandlers;
+    private HashSet<ChatRoomHandlers> chatRoomHandlers = new HashSet<>();
 
 	/**
 	 * messages je fronta pøíchozích zpráv, kterou musí mít kaý klient svoji
@@ -60,7 +62,8 @@ public class SocketHandler {
 				startSignal.await();
 				System.err.println("DBG>Output handler running for " + clientID);
 				writer = new OutputStreamWriter(mySocket.getOutputStream(), "UTF-8");
-				writer.write("\nYou are connected from " + clientID + "\n");
+                // Causes concurrency issues during testing ??
+				// writer.write("\nYou are connected from " + clientID + "\n");
 				writer.flush();
 				while (!inputFinished) {
 					String m = messages.take();// blokující ètení - pokud není ve frontì zpráv nic, uspi se!
@@ -93,6 +96,7 @@ public class SocketHandler {
 				 * vech aktivních handlerù, aby chodily zprávy od ostatních i nám
 				 */
 				activeHandlers.add(SocketHandler.this);
+                joinChatRoom("public");
 				BufferedReader reader = new BufferedReader(new InputStreamReader(mySocket.getInputStream(), "UTF-8"));
 				while ((request = reader.readLine()) != null) { // pøila od mého klienta nìjaká zpráva?
                     if (request.startsWith("#")) {
@@ -108,7 +112,9 @@ public class SocketHandler {
 					// ano - poli ji vem ostatním klientùm
                     request = String.format("[%s] >> %s", clientName, request);
 					System.out.println(request);
-					activeHandlers.sendMessageToAll(SocketHandler.this, request);
+                    for (ChatRoomHandlers chatRoom : chatRoomHandlers) {
+                        chatRoom.sendMessageToAll(SocketHandler.this, request);
+                    }
 				}
 				inputFinished = true;
 				messages.offer("OutputHandler, wakeup and die!");
@@ -120,13 +126,45 @@ public class SocketHandler {
 				e.printStackTrace();
 			} finally {
 				// remove yourself from the set of activeHandlers
-				synchronized (activeHandlers) {
-					activeHandlers.remove(SocketHandler.this);
-				}
+                activeHandlers.remove(SocketHandler.this);
+                for (ChatRoomHandlers chatRoom : chatRoomHandlers) {
+                    chatRoom.remove(SocketHandler.this);
+                }
 			}
 			System.err.println("DBG>Input handler for " + clientID + " has finished.");
 		}
 	}
+
+    /** Not the best solution imo, but works */
+
+    public void joinChatRoom(String chatRoomName) {
+        var chatRoom = ChatRoomHandlers.getChatRoom(chatRoomName);
+        if (chatRoom == null) {
+            chatRoom = new ChatRoomHandlers(chatRoomName);
+            ChatRoomHandlers.addChatRoom(chatRoom);
+        }
+
+        chatRoom.remove(this);
+        chatRoom.add(this);
+        this.chatRoomHandlers.add(chatRoom);
+    }
+
+    public void leaveChatRoom(String chatRoomName) {
+        for (var chatRoom : chatRoomHandlers) {
+            if (chatRoom.getChatRoomName().equals(chatRoomName)) {
+                chatRoom.remove(this);
+                this.chatRoomHandlers.remove(chatRoom);
+                if (chatRoom.get().isEmpty()) {
+                    ChatRoomHandlers.removeChatRoom(chatRoomName);
+                }
+                return;
+            }
+        }
+    }
+
+    public HashSet<ChatRoomHandlers> getChatRooms() {
+        return chatRoomHandlers;
+    }
 
     public String getClientID() {
         return clientID;

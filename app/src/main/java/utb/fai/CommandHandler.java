@@ -1,7 +1,6 @@
 package utb.fai;
 
-import utb.fai.commands.SendPrivateCommand;
-import utb.fai.commands.SetMyNameCommand;
+import utb.fai.commands.*;
 
 import java.util.HashMap;
 
@@ -13,6 +12,9 @@ public class CommandHandler {
         this.activeHandlers = activeHandlers;
         commands.put("setMyName", new SetMyNameCommand());
         commands.put("sendPrivate", new SendPrivateCommand());
+        commands.put("join", new JoinCommand());
+        commands.put("leave", new LeaveCommand());
+        commands.put("groups", new GroupsCommand());
     }
 
     public void parseAndExecute(SocketHandler handler, String message) {
